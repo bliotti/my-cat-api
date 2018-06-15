@@ -64,11 +64,9 @@ app.get('/cats', (req, res, next) => {
 		res.send(filter(propEq('type', 'cat'), database))
 	}
 })
-
-app.get('/breeds', function(req, res) {
+app.get('/breeds', function(req, res, next) {
 	res.send(filter(isBreed, database))
 })
-
 app.delete('/cats/:catname', function(req, res, next) {
 	if (isCatInDatabase(req.params.catname, database)) {
 		database = reject(cat => cat.id === req.params.catname, database)
@@ -77,7 +75,6 @@ app.delete('/cats/:catname', function(req, res, next) {
 		next(new nodeHTTPError(404, 'Cat not found'))
 	}
 })
-
 app.post('/cats', function(req, res, next) {
 	const newCat = propOr({}, 'body', req)
 
@@ -110,6 +107,32 @@ app.post('/cats', function(req, res, next) {
 	res.status(201).send({ ok: true, data: newNewCat })
 })
 
+app.post('/breeds', function(req, res, next) {
+	const newBreed = propOr({}, 'body', req)
+	if (isEmpty(newBreed)) {
+		next(
+			new nodeHTTPError(
+				400,
+				`missing breed in request body. use a header of 'Content-Type' with a value of 'application/json'.  Be sure to provide valid JSON to represent the breed you wish to add.`
+			)
+		)
+		return
+	}
+
+	const missingFields = checkRequiredFields(['name', 'description'], newBreed)
+	if (not(isEmpty(missingFields))) {
+		next(new nodeHTTPError(400, createMissingFieldsMsg(missingFields)))
+		return
+	}
+
+	const newNewBreed = merge(cleanObj(['name', 'description'], newBreed), {
+		id: newBreed.name,
+		type: 'breed'
+	})
+	database = append(newNewBreed, database)
+	res.status(201).send({ ok: true, data: newNewBreed })
+})
+
 app.get('/cats/:catname', (req, res, next) => {
 	isCatInDatabase(req.params.catname, database)
 		? res.send(find(cat => cat.id === req.params.catname, database))
@@ -119,7 +142,6 @@ app.get('/cats/:catname', (req, res, next) => {
 				})
 		  )
 })
-
 app.put('/cats/:catname', function(req, res, next) {
 	// TODO: DONE No cat in request body, send the 400 response status code and message to the client.
 	// TODO: DONE Missing required fields send 400 response
@@ -186,12 +208,10 @@ app.use(function(err, req, res, next) {
 	console.log('TROUBLE IN RIVER CITY, meow.', err)
 	next(err)
 })
-
 app.use(function(err, req, res, next) {
 	res.status(err.status || 500)
 	res.send(err)
 })
-
 app.listen(
 	process.env.PORT || 5555,
 	process.env.HOST || '127.0.0.1',
