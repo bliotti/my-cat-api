@@ -3,107 +3,117 @@ const express = require('express')
 const app = express()
 let database = require('./data')
 const {
-  find,
-  isEmpty,
-  propOr,
-  append,
-  merge,
-  not,
-  isNil,
-  filter,
-  compose,
-  reject
+	find,
+	isEmpty,
+	propOr,
+	append,
+	merge,
+	not,
+	isNil,
+	filter,
+	compose,
+	reject
 } = require('ramda')
-
 const bodyParser = require('body-parser')
 const checkRequiredFields = require('./lib/check-required-fields')
 const createMissingFieldsMsg = require('./lib/create-missing-field-msg')
 const cleanObj = require('./lib/clean-obj')
 const nodeHTTPError = require('node-http-error')
-
-const isCat = function(obj) {
-  return obj.type === 'cat'
-}
-
+const isCat = obj => obj.type === 'cat'
+const isBreed = obj => obj.type === 'breed'
 const isCatInDatabase = (catId, database) =>
-  compose(not, isNil, find(cat => cat.id === catId), filter(isCat))(database)
+	compose(
+		not,
+		isNil,
+		find(cat => cat.id === catId),
+		filter(isCat)
+	)(database)
 
 app.use(bodyParser.json())
 
 app.get('/', function(req, res) {
-  res.send('Welcome to the CATS api, meow.')
+	res.send('Welcome to the CATS api, meow.')
+})
+
+app.get('/cats', function(req, res) {
+	console.log(req.query)
+	res.send(filter(isCat, database))
+})
+
+app.get('/breeds', function(req, res) {
+	res.send(filter(isBreed, database))
 })
 
 app.delete('/cats/:catname', function(req, res, next) {
-  if (isCatInDatabase(req.params.catname, database)) {
-    database = reject(cat => cat.id === req.params.catname, database)
-    res.status(200).send('cat deleted')
-  } else {
-    next(new nodeHTTPError(404, 'Cat not found'))
-  }
+	if (isCatInDatabase(req.params.catname, database)) {
+		database = reject(cat => cat.id === req.params.catname, database)
+		res.status(200).send('cat deleted')
+	} else {
+		next(new nodeHTTPError(404, 'Cat not found'))
+	}
 })
 
 app.post('/cats', function(req, res, next) {
-  const newCat = propOr({}, 'body', req)
+	const newCat = propOr({}, 'body', req)
 
-  if (isEmpty(newCat)) {
-    // No cat in request body, send the 400 response status code and message to the client.
-    next(
-      new nodeHTTPError(
-        400,
-        `missing cat in request body. use a header of 'Content-Type' with a value of 'application/json'.  Be sure to provide valid JSON to represent the cat you wish to add.`
-      )
-    )
-    return
-  }
+	if (isEmpty(newCat)) {
+		// No cat in request body, send the 400 response status code and message to the client.
+		next(
+			new nodeHTTPError(
+				400,
+				`missing cat in request body. use a header of 'Content-Type' with a value of 'application/json'.  Be sure to provide valid JSON to represent the cat you wish to add.`
+			)
+		)
+		return
+	}
 
-  const missingFields = checkRequiredFields(
-    ['breed', 'name', 'owner', 'age'],
-    newCat
-  )
-  if (not(isEmpty(missingFields))) {
-    // missing required fields
-    next(new nodeHTTPError(400, `${createMissingFieldsMsg(missingFields)}`))
-    return
-  }
+	const missingFields = checkRequiredFields(
+		['breed', 'name', 'owner', 'age'],
+		newCat
+	)
+	if (not(isEmpty(missingFields))) {
+		// missing required fields
+		next(new nodeHTTPError(400, `${createMissingFieldsMsg(missingFields)}`))
+		return
+	}
 
-  const newNewCat = merge(cleanObj(['breed', 'name', 'owner', 'age'], newCat), {
-    id: newCat.name,
-    type: 'cat'
-  })
-  database = append(newNewCat, database)
-  res.status(201).send({ ok: true, data: newNewCat })
+	const newNewCat = merge(cleanObj(['breed', 'name', 'owner', 'age'], newCat), {
+		id: newCat.name,
+		type: 'cat'
+	})
+	database = append(newNewCat, database)
+	res.status(201).send({ ok: true, data: newNewCat })
 })
 
 app.get('/cats/:catname', (req, res, next) => {
-  isCatInDatabase(req.params.catname, database)
-    ? res.send(find(cat => cat.id === req.params.catname, database))
-    : next(
-        new nodeHTTPError(404, 'Cat not found', {
-          huh: 'dude, what are you doing?'
-        })
-      )
+	isCatInDatabase(req.params.catname, database)
+		? res.send(find(cat => cat.id === req.params.catname, database))
+		: next(
+				new nodeHTTPError(404, 'Cat not found', {
+					huh: 'dude, what are you doing?'
+				})
+		  )
 
-  //res.status(404).send('cat not found')
+	//res.status(404).send('cat not found')
 })
 
 app.use(function(err, req, res, next) {
-  console.log('TROUBLE IN RIVER CITY, meow.', err)
-  next(err)
+	console.log('TROUBLE IN RIVER CITY, meow.', err)
+	next(err)
 })
 
 app.use(function(err, req, res, next) {
-  res.status(err.status || 500)
-  res.send(err)
+	res.status(err.status || 500)
+	res.send(err)
 })
 
 app.listen(
-  process.env.PORT || 5555,
-  process.env.HOST || '127.0.0.1',
-  function() {
-    console.log(
-      'API is up, meow!!!',
-      `http://${process.env.HOST || '127.0.0.1'}:${process.env.PORT || 5555}`
-    )
-  }
+	process.env.PORT || 5555,
+	process.env.HOST || '127.0.0.1',
+	function() {
+		console.log(
+			'API is up, meow!!!',
+			`http://${process.env.HOST || '127.0.0.1'}:${process.env.PORT || 5555}`
+		)
+	}
 )
