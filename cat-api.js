@@ -14,13 +14,19 @@ const {
 	compose,
 	reject,
 	propEq,
-	map
+	map,
+	pathOr,
+	split,
+	head,
+	last,
+	path
 } = require('ramda')
 const bodyParser = require('body-parser')
 const checkRequiredFields = require('./lib/check-required-fields')
 const createMissingFieldsMsg = require('./lib/create-missing-field-msg')
 const cleanObj = require('./lib/clean-obj')
 const nodeHTTPError = require('node-http-error')
+const stringToNumber = require('./lib/string-to-number')
 const isCat = obj => obj.type === 'cat'
 const isBreed = obj => obj.type === 'breed'
 const isCatInDatabase = (catId, database) =>
@@ -37,9 +43,23 @@ app.get('/', function(req, res) {
 	res.send('Welcome to the CATS api, meow.')
 })
 
-app.get('/cats', function(req, res) {
-	console.log(req.query)
-	res.send(filter(isCat, database))
+app.get('/cats', function(req, res, next) {
+	const isQueryTime = not(isNil(pathOr(null, ['query', 'filter'], req)))
+	console.log(isQueryTime)
+	if (isQueryTime) {
+		const filterArr = compose(
+			split(':'),
+			path(['query', 'filter'])
+		)(req)
+
+		const filterProp = head(filterArr)
+		const filterValue = stringToNumber(last(filterArr))
+
+		res.send(filter(propEq(filterProp, filterValue), database))
+	} else {
+		res.send(filter(isCat, database))
+		console.log('ALLL')
+	}
 })
 
 app.get('/breeds', function(req, res) {
